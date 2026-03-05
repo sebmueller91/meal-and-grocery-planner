@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__4172e8c5-a264-4048-90f3-c43adba53335__list_projects",
+      "mcp__19dad165-22d1-4e21-9da7-e9769c907bee__list_teams",
+      "mcp__4172e8c5-a264-4048-90f3-c43adba53335__list_tables",
+      "mcp__4172e8c5-a264-4048-90f3-c43adba53335__get_project_url",
+      "mcp__4172e8c5-a264-4048-90f3-c43adba53335__get_publishable_keys",
+      "mcp__19dad165-22d1-4e21-9da7-e9769c907bee__list_projects",
+      "mcp__4172e8c5-a264-4048-90f3-c43adba53335__apply_migration",
+      "Bash(npm install)",
+      "Bash(/opt/homebrew/bin/brew install node)",
+      "Bash(/opt/homebrew/bin/npm install)",
+      "mcp__Claude_Preview__preview_start",
+      "mcp__4172e8c5-a264-4048-90f3-c43adba53335__execute_sql",
+      "Bash(/opt/homebrew/bin/npx next build)",
+      "Bash(npm run build)"
+    ]
+  }
+}
