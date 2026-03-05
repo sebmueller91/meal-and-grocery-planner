@@ -14,7 +14,22 @@
       "mcp__Claude_Preview__preview_start",
       "mcp__4172e8c5-a264-4048-90f3-c43adba53335__execute_sql",
       "Bash(/opt/homebrew/bin/npx next build)",
-      "Bash(npm run build)"
+      "Bash(npm run build)",
+      "Bash(/opt/homebrew/bin/node node_modules/.bin/next build)",
+      "mcp__19dad165-22d1-4e21-9da7-e9769c907bee__deploy_to_vercel",
+      "Bash(npx vercel --version)",
+      "mcp__19dad165-22d1-4e21-9da7-e9769c907bee__get_project",
+      "mcp__19dad165-22d1-4e21-9da7-e9769c907bee__get_deployment_build_logs",
+      "mcp__19dad165-22d1-4e21-9da7-e9769c907bee__list_deployments",
+      "Bash(npx vercel deploy --prod)",
+      "Bash(git add README.md .env.example)",
+      "Bash(git commit:*)",
+      "Bash(git push origin main)",
+      "mcp__19dad165-22d1-4e21-9da7-e9769c907bee__get_deployment",
+      "mcp__19dad165-22d1-4e21-9da7-e9769c907bee__web_fetch_vercel_url",
+      "mcp__19dad165-22d1-4e21-9da7-e9769c907bee__get_runtime_logs",
+      "mcp__19dad165-22d1-4e21-9da7-e9769c907bee__search_vercel_documentation",
+      "Bash(ls /Users/sebastianmueller/repos/meal-and-grocery-planner/.env*)"
     ]
   }
 }

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Item } from '@/lib/types';
 import { getItemIcon, getCategoryColor, categories } from '@/lib/itemIcons';
+import { EmojiPicker } from '@/components/EmojiPicker';
 
 export default function ZutatenPage() {
   const [items, setItems] = useState<Item[]>([]);
@@ -11,6 +12,7 @@ export default function ZutatenPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editIcon, setEditIcon] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const fetchItems = useCallback(async () => {
     const { data } = await supabase.from('items').select('*').order('name');
@@ -44,6 +46,7 @@ export default function ZutatenPage() {
   const startEditing = (item: Item) => {
     setEditingId(item.id);
     setEditIcon(item.icon || '');
+    setPickerOpen(true);
   };
 
   const saveIcon = async (itemId: string) => {
@@ -54,6 +57,7 @@ export default function ZutatenPage() {
     ));
     setEditingId(null);
     setEditIcon('');
+    setPickerOpen(false);
     await supabase.from('items').update({ icon: newIcon }).eq('id', itemId);
   };
 
@@ -63,8 +67,17 @@ export default function ZutatenPage() {
     ));
     setEditingId(null);
     setEditIcon('');
+    setPickerOpen(false);
     await supabase.from('items').update({ icon: null }).eq('id', itemId);
   };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditIcon('');
+    setPickerOpen(false);
+  };
+
+  const editingItem = editingId ? items.find(i => i.id === editingId) : null;
 
   return (
     <div className="max-w-4xl mx-auto px-4 pt-6 pb-8">
@@ -125,25 +138,18 @@ export default function ZutatenPage() {
                 {grouped[category].map(item => {
                   const isEditing = editingId === item.id;
                   const currentIcon = getItemIcon(item.name, item.icon);
-                  const defaultIcon = getItemIcon(item.name);
                   const hasCustomIcon = !!item.icon;
 
                   return (
                     <div key={item.id} className="flex items-center gap-3 px-4 py-2.5">
                       {isEditing ? (
                         <div className="flex items-center gap-2 flex-1">
-                          <input
-                            type="text"
-                            value={editIcon}
-                            onChange={e => setEditIcon(e.target.value)}
-                            className="w-12 h-10 text-center text-2xl rounded-xl border border-emerald-400 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                            placeholder={defaultIcon}
-                            autoFocus
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') saveIcon(item.id);
-                              if (e.key === 'Escape') { setEditingId(null); setEditIcon(''); }
-                            }}
-                          />
+                          <button
+                            onClick={() => setPickerOpen(true)}
+                            className="w-12 h-10 text-center text-2xl rounded-xl border border-emerald-400 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+                          >
+                            {editIcon || getItemIcon(item.name)}
+                          </button>
                           <span className="flex-1 text-sm font-medium min-w-0 truncate">{item.name}</span>
                           <button
                             onClick={() => saveIcon(item.id)}
@@ -161,7 +167,7 @@ export default function ZutatenPage() {
                             </button>
                           )}
                           <button
-                            onClick={() => { setEditingId(null); setEditIcon(''); }}
+                            onClick={cancelEditing}
                             className="px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                           >
                             ✕
@@ -199,6 +205,19 @@ export default function ZutatenPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Emoji Picker */}
+      {pickerOpen && editingItem && (
+        <EmojiPicker
+          value={editIcon}
+          defaultEmoji={getItemIcon(editingItem.name)}
+          onSelect={(emoji) => {
+            setEditIcon(emoji);
+            setPickerOpen(false);
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
       )}
     </div>
   );

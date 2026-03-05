@@ -1,4 +1,4 @@
-const iconMap: Record<string, string> = {
+export const iconMap: Record<string, string> = {
   // Obst
   'apfel': '🍎', 'äpfel': '🍎', 'banane': '🍌', 'bananen': '🍌',
   'orange': '🍊', 'orangen': '🍊', 'zitrone': '🍋', 'zitronen': '🍋',
