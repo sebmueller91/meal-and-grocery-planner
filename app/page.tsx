@@ -82,11 +82,11 @@ export default function ShoppingListPage() {
   const shoppingListItemIds = new Set(items.map(i => i.item));
   const activeItemIds = new Set(activeItems.map(i => i.item));
 
-  // Search-filtered suggestions (items NOT in cart at all)
+  // Search-filtered suggestions (items NOT actively in cart — checked items CAN be re-added)
   const suggestions = searchQuery.trim()
     ? allItems.filter(item =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !shoppingListItemIds.has(item.id)
+        !activeItemIds.has(item.id)
       )
     : [];
 
@@ -140,6 +140,8 @@ export default function ShoppingListPage() {
           ? { ...i, checked: false, checked_at: null }
           : i
       ));
+      setSearchQuery('');
+      setShowNewForm(false);
       await supabase
         .from('shopping_list')
         .update({ checked: false, checked_at: null })
@@ -164,6 +166,10 @@ export default function ShoppingListPage() {
         items: addedItem,
       } as ShoppingListItem & { items: Item }]);
     }
+
+    // Clear search after adding
+    setSearchQuery('');
+    setShowNewForm(false);
 
     await supabase.from('shopping_list').insert({ item: itemId, amount: null });
     fetchItems(); // Re-fetch to get real IDs
@@ -246,14 +252,20 @@ export default function ShoppingListPage() {
         <button
           key={item.id}
           onClick={() => toggleItem(item.id)}
-          className={`bg-gray-100 dark:bg-gray-800 rounded-2xl p-3 flex flex-col items-center justify-center aspect-square transition-all hover:scale-95 active:scale-90 ${animationClass}`}
+          className={`bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-2xl p-3 flex flex-col items-center justify-center aspect-square transition-all active:scale-90 relative ${animationClass}`}
         >
-          <span className="text-3xl sm:text-4xl mb-1 grayscale opacity-40">{getItemIcon(item.items?.name, item.items?.icon)}</span>
-          <span className="text-[11px] sm:text-xs font-semibold text-center leading-tight line-clamp-2 text-gray-400 dark:text-gray-500 line-through">
+          {/* Checkmark badge */}
+          <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </span>
+          <span className="text-4xl mb-1.5 grayscale opacity-30">{getItemIcon(item.items?.name, item.items?.icon)}</span>
+          <span className="text-xs font-semibold text-center leading-tight line-clamp-2 text-gray-400 dark:text-gray-500 line-through">
             {item.items?.name}
           </span>
           {item.amount && (
-            <span className="text-[9px] sm:text-[10px] opacity-40 mt-0.5 truncate max-w-full text-gray-400 dark:text-gray-500">
+            <span className="text-[10px] sm:text-xs opacity-30 mt-0.5 truncate max-w-full text-gray-400 dark:text-gray-500">
               {item.amount}
             </span>
           )}
@@ -265,14 +277,14 @@ export default function ShoppingListPage() {
       <button
         key={item.id}
         onClick={() => toggleItem(item.id)}
-        className={`${getCategoryColor(item.items?.category)} rounded-2xl p-3 flex flex-col items-center justify-center aspect-square transition-all hover:scale-95 active:scale-90 shadow-sm hover:shadow-md ${animationClass}`}
+        className={`${getCategoryColor(item.items?.category)} rounded-2xl p-3 flex flex-col items-center justify-center aspect-square transition-all active:scale-90 shadow-sm ${animationClass}`}
       >
-        <span className="text-3xl sm:text-4xl mb-1">{getItemIcon(item.items?.name, item.items?.icon)}</span>
-        <span className="text-[11px] sm:text-xs font-semibold text-center leading-tight line-clamp-2">
+        <span className="text-4xl mb-1.5">{getItemIcon(item.items?.name, item.items?.icon)}</span>
+        <span className="text-xs font-semibold text-center leading-tight line-clamp-2">
           {item.items?.name}
         </span>
         {item.amount && (
-          <span className="text-[9px] sm:text-[10px] opacity-70 mt-0.5 truncate max-w-full">
+          <span className="text-[10px] sm:text-xs opacity-70 mt-0.5 truncate max-w-full">
             {item.amount}
           </span>
         )}
@@ -297,20 +309,20 @@ export default function ShoppingListPage() {
       {/* Inline search bar */}
       <div className="mb-5">
         <div className="relative">
-          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
           </svg>
           <input
             type="text"
             value={searchQuery}
             onChange={e => { setSearchQuery(e.target.value); setShowNewForm(false); }}
-            className="w-full px-4 py-2.5 pl-10 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-shadow"
+            className="w-full px-4 py-3.5 pl-11 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-shadow text-base"
             placeholder="Artikel suchen oder hinzufügen..."
           />
           {searchQuery && (
             <button
               onClick={() => { setSearchQuery(''); setShowNewForm(false); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center text-xs hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
             >
               ✕
             </button>
@@ -321,7 +333,7 @@ export default function ShoppingListPage() {
       {/* "Hinzufügen" section - shown when search has results */}
       {searchQuery.trim() && (suggestions.length > 0 || (!exactMatch && searchQuery.trim())) && (
         <div className="mb-6">
-          <h2 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-1">
+          <h2 className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-1">
             Hinzufügen
           </h2>
           {suggestions.length > 0 && (
@@ -330,10 +342,10 @@ export default function ShoppingListPage() {
                 <button
                   key={item.id}
                   onClick={() => addItemToList(item.id)}
-                  className={`${getCategoryColor(item.category)} rounded-2xl p-3 flex flex-col items-center justify-center aspect-square transition-all hover:scale-95 active:scale-90 shadow-sm hover:shadow-md opacity-60 hover:opacity-100`}
+                  className={`${getCategoryColor(item.category)} rounded-2xl p-3 flex flex-col items-center justify-center aspect-square transition-all active:scale-90 shadow-sm opacity-60 hover:opacity-100`}
                 >
-                  <span className="text-3xl sm:text-4xl mb-1">{getItemIcon(item.name, item.icon)}</span>
-                  <span className="text-[11px] sm:text-xs font-semibold text-center leading-tight line-clamp-2">
+                  <span className="text-4xl mb-1.5">{getItemIcon(item.name, item.icon)}</span>
+                  <span className="text-xs font-semibold text-center leading-tight line-clamp-2">
                     {item.name}
                   </span>
                 </button>
@@ -347,19 +359,19 @@ export default function ShoppingListPage() {
               {!showNewForm ? (
                 <button
                   onClick={() => setShowNewForm(true)}
-                  className="w-full py-3 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-emerald-600 dark:text-emerald-400 font-medium text-sm hover:border-emerald-400 transition-colors"
+                  className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-emerald-600 dark:text-emerald-400 font-medium text-sm hover:border-emerald-400 transition-colors"
                 >
                   + &quot;{searchQuery.trim()}&quot; neu anlegen
                 </button>
               ) : (
-                <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
                   <p className="text-sm font-medium">
                     Neuer Artikel: <span className="text-emerald-600 dark:text-emerald-400">{searchQuery.trim()}</span>
                   </p>
                   <select
                     value={newItemCategory}
                     onChange={e => setNewItemCategory(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-base"
                   >
                     {categories.map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
@@ -368,13 +380,13 @@ export default function ShoppingListPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setShowNewForm(false)}
-                      className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                     >
                       Abbrechen
                     </button>
                     <button
                       onClick={createAndAddItem}
-                      className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 transition-colors"
+                      className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 transition-colors"
                     >
                       Anlegen & hinzufügen
                     </button>
@@ -389,10 +401,10 @@ export default function ShoppingListPage() {
       {/* Grouping toggle */}
       {filteredActiveItems.length > 0 && (
         <div className="flex mb-5">
-          <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-xl p-0.5">
+          <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
             <button
               onClick={() => { if (groupByCategory) toggleGrouping(); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
                 !groupByCategory
                   ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
                   : 'text-gray-500 dark:text-gray-400'
@@ -402,7 +414,7 @@ export default function ShoppingListPage() {
             </button>
             <button
               onClick={() => { if (!groupByCategory) toggleGrouping(); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
                 groupByCategory
                   ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
                   : 'text-gray-500 dark:text-gray-400'
@@ -420,9 +432,9 @@ export default function ShoppingListPage() {
           <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : filteredActiveItems.length === 0 && !searchQuery && checkedItems.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-5xl mb-3">🛒</p>
-          <p className="text-gray-500 dark:text-gray-400 text-lg">Die Einkaufsliste ist leer</p>
+        <div className="text-center py-20">
+          <p className="text-6xl mb-4">🛒</p>
+          <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Die Einkaufsliste ist leer</p>
           <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">
             Suche oben nach Artikeln, um sie hinzuzufügen
           </p>
@@ -431,7 +443,7 @@ export default function ShoppingListPage() {
         <div className="space-y-6">
           {sortedCategories.map(category => (
             <div key={category}>
-              <h2 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-1">
+              <h2 className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2.5 px-1">
                 {category}
               </h2>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
@@ -450,12 +462,12 @@ export default function ShoppingListPage() {
       {checkedItems.length > 0 && (
         <div className="mt-8 mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">
+            <h2 className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">
               Erledigt ({checkedItems.length})
             </h2>
             <button
               onClick={clearChecked}
-              className="text-[10px] text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors font-medium"
+              className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors font-medium py-1 px-2 -mr-2 rounded-lg"
             >
               Alle entfernen
             </button>
