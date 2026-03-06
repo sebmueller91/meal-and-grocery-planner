@@ -78,8 +78,7 @@ export default function ShoppingListPage() {
     fetchAllItems();
   }, [fetchItems, fetchAllItems]);
 
-  // Set of item IDs currently in the shopping list (both active and checked)
-  const shoppingListItemIds = new Set(items.map(i => i.item));
+  // Set of item IDs currently active on the shopping list
   const activeItemIds = new Set(activeItems.map(i => i.item));
 
   // Search-filtered suggestions (items NOT actively in cart — checked items CAN be re-added)
@@ -209,6 +208,16 @@ export default function ShoppingListPage() {
       )
     : activeItems;
 
+  // Checked items matching search query
+  const filteredCheckedItems = searchQuery.trim()
+    ? checkedItems.filter(item =>
+        item.items?.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : [];
+
+  // Are we in search mode?
+  const isSearching = !!searchQuery.trim();
+
   // Group by category
   const categoryOrder = [
     'Obst & Gemüse', 'Milchprodukte', 'Fleisch & Fisch', 'Backwaren',
@@ -298,10 +307,11 @@ export default function ShoppingListPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Einkaufsliste</h1>
         {activeItems.length > 0 && (
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            {searchQuery.trim() && filteredActiveItems.length !== activeItems.length
-              ? `${filteredActiveItems.length} von ${activeItems.length}`
-              : activeItems.length} Artikel
+          <span className="text-sm text-gray-500 dark:text-gray-400 tabular-nums">
+            {activeItems.length} {activeItems.length === 1 ? 'Artikel' : 'Artikel'}
+            {checkedItems.length > 0 && (
+              <span className="text-gray-300 dark:text-gray-600"> · {checkedItems.length} ✓</span>
+            )}
           </span>
         )}
       </div>
@@ -330,38 +340,131 @@ export default function ShoppingListPage() {
         </div>
       </div>
 
-      {/* "Hinzufügen" section - shown when search has results */}
-      {searchQuery.trim() && (suggestions.length > 0 || (!exactMatch && searchQuery.trim())) && (
-        <div className="mb-6">
-          <h2 className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-1">
-            Hinzufügen
-          </h2>
-          {suggestions.length > 0 && (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5 mb-3">
-              {suggestions.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => addItemToList(item.id)}
-                  className={`${getCategoryColor(item.category)} rounded-2xl p-3 flex flex-col items-center justify-center aspect-square transition-all active:scale-90 shadow-sm opacity-60 hover:opacity-100`}
-                >
-                  <span className="text-4xl mb-1.5">{getItemIcon(item.name, item.icon)}</span>
-                  <span className="text-xs font-semibold text-center leading-tight line-clamp-2">
-                    {item.name}
-                  </span>
-                </button>
-              ))}
+      {/* ─── SEARCH MODE ─── */}
+      {isSearching ? (
+        <div className="space-y-5">
+          {/* "Auf deiner Liste" – active items matching search */}
+          {filteredActiveItems.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2 px-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <h2 className="text-sm font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                  Auf deiner Liste
+                </h2>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
+                {filteredActiveItems.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => toggleItem(item.id)}
+                    className={`${getCategoryColor(item.items?.category)} rounded-2xl p-3 flex flex-col items-center justify-center aspect-square transition-all active:scale-90 shadow-sm relative ring-2 ring-emerald-400/50 dark:ring-emerald-500/40 on-list-card ${animatingIds.get(item.id) === 'checking' ? 'card-checking' : ''}`}
+                  >
+                    {/* "On list" badge */}
+                    <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm">
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                    </span>
+                    <span className="text-4xl mb-1.5">{getItemIcon(item.items?.name, item.items?.icon)}</span>
+                    <span className="text-xs font-semibold text-center leading-tight line-clamp-2">
+                      {item.items?.name}
+                    </span>
+                    {item.amount && (
+                      <span className="text-[10px] sm:text-xs opacity-70 mt-0.5 truncate max-w-full">
+                        {item.amount}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* "Neu anlegen" option - inline */}
+          {/* "Hinzufügen" – suggestions not on list */}
+          {suggestions.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2 px-1">
+                <span className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                  <svg className="w-3 h-3 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                </span>
+                <h2 className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                  Hinzufügen
+                </h2>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
+                {suggestions.map(item => {
+                  const isCheckedItem = checkedItems.some(ci => ci.item === item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => addItemToList(item.id)}
+                      className={`${getCategoryColor(item.category)} rounded-2xl p-3 flex flex-col items-center justify-center aspect-square transition-all active:scale-90 shadow-sm relative ${isCheckedItem ? 'opacity-70' : ''}`}
+                    >
+                      {/* "+" badge */}
+                      <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center shadow-sm">
+                        <svg className="w-3 h-3 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                      </span>
+                      <span className="text-4xl mb-1.5">{getItemIcon(item.name, item.icon)}</span>
+                      <span className="text-xs font-semibold text-center leading-tight line-clamp-2">
+                        {item.name}
+                      </span>
+                      {isCheckedItem && (
+                        <span className="text-[9px] text-gray-500 dark:text-gray-400 mt-0.5">erneut hinzufügen</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Matching checked items shown separately if no suggestion overlap */}
+          {filteredCheckedItems.length > 0 && filteredActiveItems.length === 0 && suggestions.length === 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2 px-1">
+                <span className="w-2 h-2 rounded-full bg-gray-400" />
+                <h2 className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                  Erledigt – erneut hinzufügen?
+                </h2>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
+                {filteredCheckedItems.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => addItemToList(item.item)}
+                    className="bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-2xl p-3 flex flex-col items-center justify-center aspect-square transition-all active:scale-90 relative"
+                  >
+                    <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center shadow-sm">
+                      <svg className="w-3 h-3 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 15l3-3m0 0l3-3m-3 3H4.5M19.5 12a7.5 7.5 0 11-15 0 7.5 7.5 0 0115 0z" />
+                      </svg>
+                    </span>
+                    <span className="text-4xl mb-1.5 grayscale opacity-40">{getItemIcon(item.items?.name, item.items?.icon)}</span>
+                    <span className="text-xs font-semibold text-center leading-tight line-clamp-2 text-gray-500 dark:text-gray-400">
+                      {item.items?.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* "Neu anlegen" option */}
           {!exactMatch && searchQuery.trim() && (
             <div>
               {!showNewForm ? (
                 <button
                   onClick={() => setShowNewForm(true)}
-                  className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-emerald-600 dark:text-emerald-400 font-medium text-sm hover:border-emerald-400 transition-colors"
+                  className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-emerald-600 dark:text-emerald-400 font-medium text-sm hover:border-emerald-400 transition-colors flex items-center justify-center gap-2"
                 >
-                  + &quot;{searchQuery.trim()}&quot; neu anlegen
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  &quot;{searchQuery.trim()}&quot; neu anlegen
                 </button>
               ) : (
                 <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
@@ -395,87 +498,97 @@ export default function ShoppingListPage() {
               )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* Grouping toggle */}
-      {filteredActiveItems.length > 0 && (
-        <div className="flex mb-5">
-          <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
-            <button
-              onClick={() => { if (groupByCategory) toggleGrouping(); }}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                !groupByCategory
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-500 dark:text-gray-400'
-              }`}
-            >
-              Alle
-            </button>
-            <button
-              onClick={() => { if (!groupByCategory) toggleGrouping(); }}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                groupByCategory
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-500 dark:text-gray-400'
-              }`}
-            >
-              Nach Kategorie
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Shopping list */}
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : filteredActiveItems.length === 0 && !searchQuery && checkedItems.length === 0 ? (
-        <div className="text-center py-20">
-          <p className="text-6xl mb-4">🛒</p>
-          <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Die Einkaufsliste ist leer</p>
-          <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">
-            Suche oben nach Artikeln, um sie hinzuzufügen
-          </p>
-        </div>
-      ) : groupByCategory ? (
-        <div className="space-y-6">
-          {sortedCategories.map(category => (
-            <div key={category}>
-              <h2 className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2.5 px-1">
-                {category}
-              </h2>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
-                {grouped[category].map(item => renderItemCard(item, false))}
-              </div>
+          {/* No results at all */}
+          {filteredActiveItems.length === 0 && suggestions.length === 0 && filteredCheckedItems.length === 0 && exactMatch && (
+            <div className="text-center py-8">
+              <p className="text-gray-400 dark:text-gray-500 text-sm">Keine Ergebnisse</p>
             </div>
-          ))}
+          )}
         </div>
       ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
-          {filteredActiveItems.map(item => renderItemCard(item, false))}
-        </div>
-      )}
+        /* ─── NORMAL MODE (no search) ─── */
+        <>
+          {/* Grouping toggle */}
+          {activeItems.length > 0 && (
+            <div className="flex mb-5">
+              <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+                <button
+                  onClick={() => { if (groupByCategory) toggleGrouping(); }}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                    !groupByCategory
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }`}
+                >
+                  Alle
+                </button>
+                <button
+                  onClick={() => { if (!groupByCategory) toggleGrouping(); }}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                    groupByCategory
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }`}
+                >
+                  Nach Kategorie
+                </button>
+              </div>
+            </div>
+          )}
 
-      {/* Checked items section (Bring!-style) */}
-      {checkedItems.length > 0 && (
-        <div className="mt-8 mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">
-              Erledigt ({checkedItems.length})
-            </h2>
-            <button
-              onClick={clearChecked}
-              className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors font-medium py-1 px-2 -mr-2 rounded-lg"
-            >
-              Alle entfernen
-            </button>
-          </div>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
-            {checkedItems.map(item => renderItemCard(item, true))}
-          </div>
-        </div>
+          {/* Shopping list */}
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : activeItems.length === 0 && checkedItems.length === 0 ? (
+            <div className="text-center py-20">
+              <p className="text-6xl mb-4">🛒</p>
+              <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Die Einkaufsliste ist leer</p>
+              <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">
+                Suche oben nach Artikeln, um sie hinzuzufügen
+              </p>
+            </div>
+          ) : groupByCategory ? (
+            <div className="space-y-6">
+              {sortedCategories.map(category => (
+                <div key={category}>
+                  <h2 className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2.5 px-1">
+                    {category}
+                  </h2>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
+                    {grouped[category].map(item => renderItemCard(item, false))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
+              {activeItems.map(item => renderItemCard(item, false))}
+            </div>
+          )}
+
+          {/* Checked items section (Bring!-style) */}
+          {checkedItems.length > 0 && (
+            <div className="mt-8 mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">
+                  Erledigt ({checkedItems.length})
+                </h2>
+                <button
+                  onClick={clearChecked}
+                  className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors font-medium py-1 px-2 -mr-2 rounded-lg"
+                >
+                  Alle entfernen
+                </button>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
+                {checkedItems.map(item => renderItemCard(item, true))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

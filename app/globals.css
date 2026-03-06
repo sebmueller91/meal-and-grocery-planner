@@ -65,3 +65,12 @@ html {
 .card-appear {
   animation: card-appear 300ms ease-out forwards;
 }
+
+/* ── Subtle pulse for "on list" items in search ── */
+@keyframes on-list-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
+}
+.on-list-card {
+  animation: on-list-pulse 2s ease-in-out infinite;
+}
