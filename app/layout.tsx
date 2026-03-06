@@ -6,12 +6,12 @@ import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistratio
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Einkaufs- & Rezeptplaner',
-  description: 'Einkaufsliste, Rezepte und Wochenplanung',
+  title: 'Rezept- und Einkaufsplaner',
+  description: 'Rezepte, Einkaufsliste und Wochenplanung',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Mahlzeit',
+    title: 'Rezeptplaner',
   },
   formatDetection: {
     telephone: false,

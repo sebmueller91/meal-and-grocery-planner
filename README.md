@@ -1,6 +1,6 @@
-# Meal & Grocery Planner
+# Rezept- und Einkaufsplaner
 
-Eine Web-App zur Verwaltung von Einkaufslisten, Rezepten und Wochenplanung – optimiert für mobile Nutzung.
+Eine Progressive Web App zur Verwaltung von Rezepten, Einkaufslisten und Wochenplanung – optimiert für mobile Nutzung.
 
 ## Features
 

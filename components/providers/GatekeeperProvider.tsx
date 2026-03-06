@@ -75,7 +75,7 @@ export function GatekeeperProvider({ children }: { children: ReactNode }) {
           <div className="text-center">
             <p className="text-5xl mb-3">🍽️</p>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Mahlzeit!
+              Rezept- und Einkaufsplaner
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">
               Bitte Passwort eingeben

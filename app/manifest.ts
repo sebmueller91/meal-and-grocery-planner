@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Einkaufs- & Rezeptplaner',
-    short_name: 'Mahlzeit',
-    description: 'Einkaufsliste, Rezepte und Wochenplanung',
+    name: 'Rezept- und Einkaufsplaner',
+    short_name: 'Rezeptplaner',
+    description: 'Rezepte, Einkaufsliste und Wochenplanung',
     start_url: '/',
     display: 'standalone',
     orientation: 'portrait',

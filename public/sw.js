@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mahlzeit-v1';
+const CACHE_NAME = 'rezeptplaner-v1';
 
 // App shell URLs to precache
 const PRECACHE_URLS = [
