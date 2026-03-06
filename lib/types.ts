@@ -11,6 +11,8 @@ export interface ShoppingListItem {
   item: string;
   amount: string | null;
   extra_info: string | null;
+  checked: boolean;
+  checked_at: string | null;
   created_at: string;
   items?: Item;
 }

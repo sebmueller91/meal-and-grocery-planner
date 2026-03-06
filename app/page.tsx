@@ -1,40 +1,45 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { ShoppingListItem, Item } from '@/lib/types';
 import { getItemIcon, getCategoryColor, categories } from '@/lib/itemIcons';
 
-interface RecentEntry {
-  item: Item;
-  amount: string | null;
-  action: 'added' | 'removed';
-  timestamp: number;
-}
+type AnimationType = 'checking' | 'unchecking';
 
 export default function ShoppingListPage() {
   const [items, setItems] = useState<(ShoppingListItem & { items: Item })[]>([]);
   const [allItems, setAllItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [groupByCategory, setGroupByCategory] = useState(false);
-  const [recentEntries, setRecentEntries] = useState<RecentEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [newItemCategory, setNewItemCategory] = useState('Sonstiges');
   const [showNewForm, setShowNewForm] = useState(false);
+  const [animatingIds, setAnimatingIds] = useState<Map<string, AnimationType>>(new Map());
+
+  // Track IDs that were checked on initial load (no animation for these)
+  const initialCheckedIds = useRef<Set<string>>(new Set());
+  const hasInitialized = useRef(false);
+
+  // Split items into active and checked
+  const activeItems = useMemo(
+    () => items.filter(i => !i.checked),
+    [items]
+  );
+  const checkedItems = useMemo(
+    () => items.filter(i => i.checked).sort((a, b) => {
+      // Most recently checked first
+      const aTime = a.checked_at ? new Date(a.checked_at).getTime() : 0;
+      const bTime = b.checked_at ? new Date(b.checked_at).getTime() : 0;
+      return bTime - aTime;
+    }),
+    [items]
+  );
 
   // Load preferences from localStorage
   useEffect(() => {
     const stored = localStorage.getItem('groupByCategory');
     if (stored !== null) setGroupByCategory(JSON.parse(stored));
-
-    const storedRecent = localStorage.getItem('recentEntries');
-    if (storedRecent) {
-      try {
-        const parsed: RecentEntry[] = JSON.parse(storedRecent);
-        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-        setRecentEntries(parsed.filter(e => e.timestamp > cutoff));
-      } catch { /* ignore */ }
-    }
   }, []);
 
   const toggleGrouping = () => {
@@ -43,21 +48,23 @@ export default function ShoppingListPage() {
     localStorage.setItem('groupByCategory', JSON.stringify(next));
   };
 
-  const addRecentEntry = useCallback((entry: RecentEntry) => {
-    setRecentEntries(prev => {
-      const updated = [entry, ...prev].slice(0, 30);
-      localStorage.setItem('recentEntries', JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-
   const fetchItems = useCallback(async () => {
     const { data } = await supabase
       .from('shopping_list')
       .select('*, items(*)')
       .order('created_at', { ascending: true });
 
-    if (data) setItems(data as (ShoppingListItem & { items: Item })[]);
+    if (data) {
+      const typed = data as (ShoppingListItem & { items: Item })[];
+      // Track initially checked IDs (only on first load)
+      if (!hasInitialized.current) {
+        initialCheckedIds.current = new Set(
+          typed.filter(i => i.checked).map(i => i.id)
+        );
+        hasInitialized.current = true;
+      }
+      setItems(typed);
+    }
     setLoading(false);
   }, []);
 
@@ -71,10 +78,11 @@ export default function ShoppingListPage() {
     fetchAllItems();
   }, [fetchItems, fetchAllItems]);
 
-  // Set of item IDs currently in the shopping list
+  // Set of item IDs currently in the shopping list (both active and checked)
   const shoppingListItemIds = new Set(items.map(i => i.item));
+  const activeItemIds = new Set(activeItems.map(i => i.item));
 
-  // Search-filtered suggestions (items NOT in cart)
+  // Search-filtered suggestions (items NOT in cart at all)
   const suggestions = searchQuery.trim()
     ? allItems.filter(item =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
@@ -87,8 +95,60 @@ export default function ShoppingListPage() {
     i => i.name.toLowerCase() === searchQuery.trim().toLowerCase()
   );
 
+  const toggleItem = async (id: string) => {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+
+    const newChecked = !item.checked;
+    const animType: AnimationType = newChecked ? 'checking' : 'unchecking';
+
+    // Start animation
+    setAnimatingIds(prev => new Map(prev).set(id, animType));
+
+    // After animation, update state
+    setTimeout(async () => {
+      // Optimistic update
+      setItems(prev => prev.map(i =>
+        i.id === id
+          ? { ...i, checked: newChecked, checked_at: newChecked ? new Date().toISOString() : null }
+          : i
+      ));
+      setAnimatingIds(prev => {
+        const next = new Map(prev);
+        next.delete(id);
+        return next;
+      });
+
+      // DB update
+      await supabase
+        .from('shopping_list')
+        .update({
+          checked: newChecked,
+          checked_at: newChecked ? new Date().toISOString() : null,
+        })
+        .eq('id', id);
+    }, 300);
+  };
+
   const addItemToList = async (itemId: string) => {
-    if (shoppingListItemIds.has(itemId)) return;
+    // Check if item exists as checked → reactivate it
+    const checkedEntry = items.find(i => i.item === itemId && i.checked);
+    if (checkedEntry) {
+      // Reactivate the checked item
+      setItems(prev => prev.map(i =>
+        i.id === checkedEntry.id
+          ? { ...i, checked: false, checked_at: null }
+          : i
+      ));
+      await supabase
+        .from('shopping_list')
+        .update({ checked: false, checked_at: null })
+        .eq('id', checkedEntry.id);
+      return;
+    }
+
+    // Don't add if already active
+    if (activeItemIds.has(itemId)) return;
 
     // Optimistic update
     const addedItem = allItems.find(i => i.id === itemId);
@@ -98,57 +158,15 @@ export default function ShoppingListPage() {
         item: itemId,
         amount: null,
         extra_info: null,
+        checked: false,
+        checked_at: null,
         created_at: new Date().toISOString(),
         items: addedItem,
       } as ShoppingListItem & { items: Item }]);
-
-      addRecentEntry({
-        item: addedItem,
-        amount: null,
-        action: 'added',
-        timestamp: Date.now(),
-      });
     }
 
     await supabase.from('shopping_list').insert({ item: itemId, amount: null });
     fetchItems(); // Re-fetch to get real IDs
-  };
-
-  const removeItem = async (id: string) => {
-    const removed = items.find(i => i.id === id);
-    setItems(prev => prev.filter(i => i.id !== id));
-    await supabase.from('shopping_list').delete().eq('id', id);
-
-    if (removed?.items) {
-      addRecentEntry({
-        item: removed.items,
-        amount: removed.amount,
-        action: 'removed',
-        timestamp: Date.now(),
-      });
-    }
-  };
-
-  const reAddItem = async (entry: RecentEntry) => {
-    // Prevent duplicates
-    if (shoppingListItemIds.has(entry.item.id)) return;
-
-    await supabase.from('shopping_list').insert({
-      item: entry.item.id,
-      amount: entry.amount,
-    });
-
-    setRecentEntries(prev => {
-      const updated = prev.map(e =>
-        e.item.id === entry.item.id && e.action === 'removed' && e.timestamp === entry.timestamp
-          ? { ...e, action: 'added' as const, timestamp: Date.now() }
-          : e
-      );
-      localStorage.setItem('recentEntries', JSON.stringify(updated));
-      return updated;
-    });
-
-    fetchItems();
   };
 
   const createAndAddItem = async () => {
@@ -170,17 +188,20 @@ export default function ShoppingListPage() {
     setNewItemCategory('Sonstiges');
   };
 
-  const clearRecent = () => {
-    setRecentEntries([]);
-    localStorage.removeItem('recentEntries');
+  const clearChecked = async () => {
+    const checkedIds = checkedItems.map(i => i.id);
+    // Optimistic update
+    setItems(prev => prev.filter(i => !i.checked));
+    // DB delete
+    await supabase.from('shopping_list').delete().in('id', checkedIds);
   };
 
-  // Filter shopping list items by search query
-  const filteredItems = searchQuery.trim()
-    ? items.filter(item =>
+  // Filter shopping list items by search query (only active)
+  const filteredActiveItems = searchQuery.trim()
+    ? activeItems.filter(item =>
         item.items?.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : items;
+    : activeItems;
 
   // Group by category
   const categoryOrder = [
@@ -189,53 +210,86 @@ export default function ShoppingListPage() {
     'Snacks & Süßes', 'Grundnahrungsmittel', 'Haushalt', 'Sonstiges',
   ];
 
-  const grouped = filteredItems.reduce((acc, item) => {
+  const grouped = filteredActiveItems.reduce((acc, item) => {
     const cat = item.items?.category || 'Sonstiges';
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(item);
     return acc;
-  }, {} as Record<string, typeof filteredItems>);
+  }, {} as Record<string, typeof filteredActiveItems>);
 
   const sortedCategories = Object.keys(grouped).sort(
     (a, b) => categoryOrder.indexOf(a) - categoryOrder.indexOf(b)
   );
 
-  const formatTime = (ts: number) => {
-    const diff = Math.floor((Date.now() - ts) / 1000);
-    if (diff < 60) return 'gerade eben';
-    if (diff < 3600) return `vor ${Math.floor(diff / 60)} Min.`;
-    if (diff < 86400) return `vor ${Math.floor(diff / 3600)} Std.`;
-    return 'gestern';
-  };
+  const renderItemCard = (item: ShoppingListItem & { items: Item }, isChecked: boolean = false) => {
+    const animClass = animatingIds.get(item.id);
+    const isInitialChecked = initialCheckedIds.current.has(item.id);
 
-  const renderItemCard = (item: ShoppingListItem & { items: Item }) => (
-    <button
-      key={item.id}
-      onClick={() => removeItem(item.id)}
-      className={`${getCategoryColor(item.items?.category)} rounded-2xl p-3 flex flex-col items-center justify-center aspect-square transition-all hover:scale-95 active:scale-90 shadow-sm hover:shadow-md`}
-    >
-      <span className="text-3xl sm:text-4xl mb-1">{getItemIcon(item.items?.name, item.items?.icon)}</span>
-      <span className="text-[11px] sm:text-xs font-semibold text-center leading-tight line-clamp-2">
-        {item.items?.name}
-      </span>
-      {item.amount && (
-        <span className="text-[9px] sm:text-[10px] opacity-70 mt-0.5 truncate max-w-full">
-          {item.amount}
+    // Determine CSS class for animation
+    let animationClass = '';
+    if (animClass) {
+      animationClass = animClass === 'checking' ? 'card-checking' : 'card-unchecking';
+    } else if (isChecked && !isInitialChecked) {
+      animationClass = 'card-appear';
+    }
+
+    // Remove from initial set once rendered (so future toggles animate)
+    if (isChecked && isInitialChecked) {
+      // We'll clean this up after first render
+      requestAnimationFrame(() => {
+        initialCheckedIds.current.delete(item.id);
+      });
+    }
+
+    if (isChecked) {
+      return (
+        <button
+          key={item.id}
+          onClick={() => toggleItem(item.id)}
+          className={`bg-gray-100 dark:bg-gray-800 rounded-2xl p-3 flex flex-col items-center justify-center aspect-square transition-all hover:scale-95 active:scale-90 ${animationClass}`}
+        >
+          <span className="text-3xl sm:text-4xl mb-1 grayscale opacity-40">{getItemIcon(item.items?.name, item.items?.icon)}</span>
+          <span className="text-[11px] sm:text-xs font-semibold text-center leading-tight line-clamp-2 text-gray-400 dark:text-gray-500 line-through">
+            {item.items?.name}
+          </span>
+          {item.amount && (
+            <span className="text-[9px] sm:text-[10px] opacity-40 mt-0.5 truncate max-w-full text-gray-400 dark:text-gray-500">
+              {item.amount}
+            </span>
+          )}
+        </button>
+      );
+    }
+
+    return (
+      <button
+        key={item.id}
+        onClick={() => toggleItem(item.id)}
+        className={`${getCategoryColor(item.items?.category)} rounded-2xl p-3 flex flex-col items-center justify-center aspect-square transition-all hover:scale-95 active:scale-90 shadow-sm hover:shadow-md ${animationClass}`}
+      >
+        <span className="text-3xl sm:text-4xl mb-1">{getItemIcon(item.items?.name, item.items?.icon)}</span>
+        <span className="text-[11px] sm:text-xs font-semibold text-center leading-tight line-clamp-2">
+          {item.items?.name}
         </span>
-      )}
-    </button>
-  );
+        {item.amount && (
+          <span className="text-[9px] sm:text-[10px] opacity-70 mt-0.5 truncate max-w-full">
+            {item.amount}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4 pt-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Einkaufsliste</h1>
-        {items.length > 0 && (
+        {activeItems.length > 0 && (
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            {searchQuery.trim() && filteredItems.length !== items.length
-              ? `${filteredItems.length} von ${items.length}`
-              : items.length} Artikel
+            {searchQuery.trim() && filteredActiveItems.length !== activeItems.length
+              ? `${filteredActiveItems.length} von ${activeItems.length}`
+              : activeItems.length} Artikel
           </span>
         )}
       </div>
@@ -333,7 +387,7 @@ export default function ShoppingListPage() {
       )}
 
       {/* Grouping toggle */}
-      {filteredItems.length > 0 && (
+      {filteredActiveItems.length > 0 && (
         <div className="flex mb-5">
           <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-xl p-0.5">
             <button
@@ -365,7 +419,7 @@ export default function ShoppingListPage() {
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : filteredItems.length === 0 && !searchQuery ? (
+      ) : filteredActiveItems.length === 0 && !searchQuery && checkedItems.length === 0 ? (
         <div className="text-center py-16">
           <p className="text-5xl mb-3">🛒</p>
           <p className="text-gray-500 dark:text-gray-400 text-lg">Die Einkaufsliste ist leer</p>
@@ -381,65 +435,33 @@ export default function ShoppingListPage() {
                 {category}
               </h2>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
-                {grouped[category].map(renderItemCard)}
+                {grouped[category].map(item => renderItemCard(item, false))}
               </div>
             </div>
           ))}
         </div>
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
-          {filteredItems.map(renderItemCard)}
+          {filteredActiveItems.map(item => renderItemCard(item, false))}
         </div>
       )}
 
-      {/* Recent activity */}
-      {recentEntries.length > 0 && (
-        <div className="mt-10 mb-6">
+      {/* Checked items section (Bring!-style) */}
+      {checkedItems.length > 0 && (
+        <div className="mt-8 mb-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1">
-              Verlauf
+              Erledigt ({checkedItems.length})
             </h2>
             <button
-              onClick={clearRecent}
-              className="text-[10px] text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              onClick={clearChecked}
+              className="text-[10px] text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors font-medium"
             >
-              Leeren
+              Alle entfernen
             </button>
           </div>
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 divide-y divide-gray-100 dark:divide-gray-800">
-            {recentEntries.map((entry, idx) => (
-              <div key={`${entry.item.id}-${entry.timestamp}-${idx}`} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="text-lg">{getItemIcon(entry.item.name, entry.item.icon)}</span>
-                <div className="flex-1 min-w-0">
-                  <span className={`text-sm font-medium ${entry.action === 'removed' ? 'line-through text-gray-400 dark:text-gray-500' : ''}`}>
-                    {entry.item.name}
-                  </span>
-                  {entry.amount && (
-                    <span className="text-xs text-gray-400 ml-1.5">{entry.amount}</span>
-                  )}
-                </div>
-                <span className="text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                  {formatTime(entry.timestamp)}
-                </span>
-                {entry.action === 'removed' ? (
-                  <button
-                    onClick={() => reAddItem(entry)}
-                    className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
-                      shoppingListItemIds.has(entry.item.id)
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-300 dark:text-gray-600 cursor-not-allowed'
-                        : 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-800'
-                    }`}
-                    disabled={shoppingListItemIds.has(entry.item.id)}
-                  >
-                    +
-                  </button>
-                ) : (
-                  <span className="flex-shrink-0 text-[10px] text-emerald-500 font-medium px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-full">
-                    hinzugefügt
-                  </span>
-                )}
-              </div>
-            ))}
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2.5">
+            {checkedItems.map(item => renderItemCard(item, true))}
           </div>
         </div>
       )}

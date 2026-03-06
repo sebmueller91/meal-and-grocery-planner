@@ -39,7 +39,14 @@ export function TransferModal({ ingredients, onClose }: Props) {
       });
   }, []);
 
-  // Build a map: item_id → shopping list entry
+  // Build maps: item_id → shopping list entry (active and checked separately)
+  const activeMap = new Map(
+    shoppingList.filter(sl => !sl.checked).map(sl => [sl.item, sl])
+  );
+  const checkedMap = new Map(
+    shoppingList.filter(sl => sl.checked).map(sl => [sl.item, sl])
+  );
+  // Combined map for display purposes
   const existingMap = new Map(
     shoppingList.map(sl => [sl.item, sl])
   );
@@ -49,7 +56,8 @@ export function TransferModal({ ingredients, onClose }: Props) {
     if (loading) return;
     const initial = new Set<string>();
     ingredients.forEach(ing => {
-      if (!ing.is_common && !existingMap.has(ing.item_id)) {
+      // Pre-select items that are not on the active list (including checked ones)
+      if (!ing.is_common && !activeMap.has(ing.item_id)) {
         initial.add(ing.id);
       }
     });
@@ -81,7 +89,11 @@ export function TransferModal({ ingredients, onClose }: Props) {
   const transfer = async () => {
     setTransferring(true);
 
-    // New items to insert
+    // Items that need to be reactivated (checked → unchecked)
+    const toReactivate = ingredients
+      .filter(ing => selected.has(ing.id) && checkedMap.has(ing.item_id));
+
+    // Truly new items to insert (not in shopping list at all)
     const toInsert = ingredients
       .filter(ing => selected.has(ing.id) && !existingMap.has(ing.item_id))
       .map(ing => ({
@@ -89,9 +101,17 @@ export function TransferModal({ ingredients, onClose }: Props) {
         amount: ing.amount,
       }));
 
-    // Existing items to update
+    // Existing active items to update
     const toUpdate = ingredients
-      .filter(ing => selectedForUpdate.has(ing.id) && existingMap.has(ing.item_id));
+      .filter(ing => selectedForUpdate.has(ing.id) && activeMap.has(ing.item_id));
+
+    // Reactivate checked items
+    for (const ing of toReactivate) {
+      await supabase
+        .from('shopping_list')
+        .update({ checked: false, checked_at: null, amount: ing.amount })
+        .eq('item', ing.item_id);
+    }
 
     if (toInsert.length > 0) {
       await supabase.from('shopping_list').insert(toInsert);
@@ -138,8 +158,11 @@ export function TransferModal({ ingredients, onClose }: Props) {
         {/* Ingredient list */}
         <div className="flex-1 overflow-y-auto px-4 pb-2 space-y-1.5">
           {ingredients.map(ing => {
-            const existing = existingMap.get(ing.item_id);
-            const isOnList = !!existing;
+            const existing = activeMap.get(ing.item_id);
+            const isOnActiveList = !!existing;
+            const isChecked = checkedMap.has(ing.item_id);
+            // Items on the active list use the "update" flow; others (new or checked) use "select" flow
+            const isOnList = isOnActiveList;
             const isSelected = isOnList ? selectedForUpdate.has(ing.id) : selected.has(ing.id);
 
             return (
@@ -189,6 +212,11 @@ export function TransferModal({ ingredients, onClose }: Props) {
                   {isOnList && !ing.is_common && (
                     <span className="text-[9px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
                       Bereits vorhanden
+                    </span>
+                  )}
+                  {isChecked && !ing.is_common && (
+                    <span className="text-[9px] bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
+                      Erledigt
                     </span>
                   )}
                 </button>
