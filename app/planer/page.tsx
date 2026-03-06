@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Recipe, MealPlan } from '@/lib/types';
+import { useBackButton } from '@/hooks/useBackButton';
 
 const MEAL_TYPES = ['Frühstück', 'Mittagessen', 'Abendessen'] as const;
 const MEAL_ICONS: Record<string, string> = {
@@ -112,6 +113,9 @@ export default function PlanerPage() {
     setSelectedSlot(null);
     setPickerSearch('');
   };
+
+  // Android back button closes slot picker
+  useBackButton(!!selectedSlot, closeSlotPicker);
 
   const goToThisWeek = () => setWeekStart(getMonday(getToday()));
   const goPrevWeek = () => setWeekStart(addDays(weekStart, -7));

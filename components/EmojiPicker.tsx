@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { emojiCategories } from '@/lib/emojiData';
+import { useBackButton } from '@/hooks/useBackButton';
 
 interface EmojiPickerProps {
   value: string;
@@ -12,6 +13,9 @@ interface EmojiPickerProps {
 
 export function EmojiPicker({ value, defaultEmoji, onSelect, onClose }: EmojiPickerProps) {
   const [activeCategory, setActiveCategory] = useState(0);
+
+  // Android back button closes picker
+  useBackButton(true, onClose);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

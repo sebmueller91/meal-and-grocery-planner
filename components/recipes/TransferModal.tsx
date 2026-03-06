@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { RecipeIngredient, Item, ShoppingListItem } from '@/lib/types';
 import { getItemIcon } from '@/lib/itemIcons';
+import { useBackButton } from '@/hooks/useBackButton';
 
 interface Props {
   ingredients: (RecipeIngredient & { items: Item })[];
@@ -11,6 +12,9 @@ interface Props {
 }
 
 export function TransferModal({ ingredients, onClose }: Props) {
+  // Android back button closes modal
+  useBackButton(true, onClose);
+
   const [shoppingList, setShoppingList] = useState<(ShoppingListItem & { items: Item })[]>([]);
   const [loading, setLoading] = useState(true);
 

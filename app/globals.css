@@ -1,3 +1,37 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Safe area support ── */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ── Standalone PWA mode ── */
+@media (display-mode: standalone) {
+  html {
+    /* Prevent pull-to-refresh / overscroll bounce */
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* iOS standalone: respect status bar / notch area */
+@supports (padding-top: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+/* ── Native tap behavior ── */
+nav a,
+nav button,
+button,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* ── Smooth scrolling ── */
+html {
+  scroll-behavior: smooth;
+}

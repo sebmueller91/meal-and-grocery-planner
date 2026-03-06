@@ -16,6 +16,15 @@ export function useTheme() {
   return useContext(ThemeContext);
 }
 
+/** Update the theme-color meta tag for PWA status bar */
+function updateThemeColor(theme: Theme) {
+  const color = theme === 'dark' ? '#064e3b' : '#059669';
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute('content', color);
+  }
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>('light');
   const [mounted, setMounted] = useState(false);
@@ -26,6 +35,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const initial = stored || preferred;
     setTheme(initial);
     document.documentElement.classList.toggle('dark', initial === 'dark');
+    updateThemeColor(initial);
     setMounted(true);
   }, []);
 
@@ -34,6 +44,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setTheme(next);
     localStorage.setItem('theme', next);
     document.documentElement.classList.toggle('dark', next === 'dark');
+    updateThemeColor(next);
   };
 
   if (!mounted) {

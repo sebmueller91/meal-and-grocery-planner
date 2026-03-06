@@ -29,7 +29,9 @@
       "mcp__19dad165-22d1-4e21-9da7-e9769c907bee__web_fetch_vercel_url",
       "mcp__19dad165-22d1-4e21-9da7-e9769c907bee__get_runtime_logs",
       "mcp__19dad165-22d1-4e21-9da7-e9769c907bee__search_vercel_documentation",
-      "Bash(ls /Users/sebastianmueller/repos/meal-and-grocery-planner/.env*)"
+      "Bash(ls /Users/sebastianmueller/repos/meal-and-grocery-planner/.env*)",
+      "WebFetch(domain:serwist.pages.dev)",
+      "Bash(/opt/homebrew/bin/node /Users/sebastianmueller/repos/meal-and-grocery-planner/scripts/generate-icons.js)"
     ]
   }
 }
